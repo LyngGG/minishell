@@ -60,7 +60,7 @@ int main(void)
         pid_t *pids = calloc(argvc, sizeof(pid_t));
 
         if (!pids) {
-            perror("calloc");
+            perror("[ERROR] calloc");
             continue;
         }
 
@@ -69,14 +69,14 @@ int main(void)
 
             if (i < argvc - 1) {
                 if (pipe(pipefd) < 0) {
-                    perror("pipe");
+                    perror("[ERROR] pipe");
                     break;
                 }
             }
 
             pid_t pid = fork(); 
             if (pid < 0) {
-                perror("fork");
+                perror("[ERROR] fork");
                 /* Cerrar extremos y abortar */
                 if (pipefd[0] != -1) close(pipefd[0]);
                 if (pipefd[1] != -1) close(pipefd[1]);
