@@ -159,21 +159,65 @@ int main(void)
                 set_child_signals(bg);
 
                 if (prev_read != -1) {
-                    dup2(prev_read, STDIN_FILENO);
+                    if (dup2(prev_read, STDIN_FILENO) < 0) {
+                        perror("dup2 stdin");
+                        if (prev_read != -1) close(prev_read);
+                        if (pipefd[0] != -1) close(pipefd[0]);
+                        if (pipefd[1] != -1) close(pipefd[1]);
+                        if (in_fd != -1) close(in_fd);
+                        if (out_fd != -1) close(out_fd);
+                        if (err_fd != -1) close(err_fd);
+                        exit(1);
+                    }
                 } else if (in_fd != -1) {
-                    dup2(in_fd, STDIN_FILENO);
+                    if (dup2(in_fd, STDIN_FILENO) < 0) {
+                        perror("dup2 stdin");
+                        if (prev_read != -1) close(prev_read);
+                        if (pipefd[0] != -1) close(pipefd[0]);
+                        if (pipefd[1] != -1) close(pipefd[1]);
+                        if (in_fd != -1) close(in_fd);
+                        if (out_fd != -1) close(out_fd);
+                        if (err_fd != -1) close(err_fd);
+                        exit(1);
+                    }
                 }
 
                 if (i < argvc - 1) {
-                    dup2(pipefd[1], STDOUT_FILENO);
+                    if (dup2(pipefd[1], STDOUT_FILENO) < 0) {
+                        perror("dup2 stdout");
+                        if (prev_read != -1) close(prev_read);
+                        if (pipefd[0] != -1) close(pipefd[0]);
+                        if (pipefd[1] != -1) close(pipefd[1]);
+                        if (in_fd != -1) close(in_fd);
+                        if (out_fd != -1) close(out_fd);
+                        if (err_fd != -1) close(err_fd);
+                        exit(1);
+                    }
                 } else if (out_fd != -1) {
-                    dup2(out_fd, STDOUT_FILENO);
+                    if (dup2(out_fd, STDOUT_FILENO) < 0) {
+                        perror("dup2 stdout");
+                        if (prev_read != -1) close(prev_read);
+                        if (pipefd[0] != -1) close(pipefd[0]);
+                        if (pipefd[1] != -1) close(pipefd[1]);
+                        if (in_fd != -1) close(in_fd);
+                        if (out_fd != -1) close(out_fd);
+                        if (err_fd != -1) close(err_fd);
+                        exit(1);
+                    }
                 }
-                /**/
 
                 /* Solo redirige stderr en el ultimo comando */
                 if (err_fd != -1 && i == argvc - 1) {
-                    dup2(err_fd, STDERR_FILENO);
+                    if (dup2(err_fd, STDERR_FILENO) < 0) {
+                        perror("dup2 stderr");
+                        if (prev_read != -1) close(prev_read);
+                        if (pipefd[0] != -1) close(pipefd[0]);
+                        if (pipefd[1] != -1) close(pipefd[1]);
+                        if (in_fd != -1) close(in_fd);
+                        if (out_fd != -1) close(out_fd);
+                        if (err_fd != -1) close(err_fd);
+                        exit(1);
+                    }
                 }
 
                 /* Cierra fds no usados en el hijo */
@@ -181,7 +225,7 @@ int main(void)
                 if (pipefd[0] != -1) close(pipefd[0]);
 
                 if (bg && started > 0) {
-                    bgpid = pids[started - 1];
+                    int bgpid = pids[started - 1];
                     fprintf(stderr, "[%d]\n", started, bgpid);
                 } else if (started > 0) {
                     waitpid(pids[started - 1], &status, 0);
