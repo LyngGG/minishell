@@ -30,22 +30,26 @@ extern int obtain_order();  /* See parser.y for description */
 
 int main(void)
 {
+    /* argvv: pipeline de comandos, filev: redirecciones, bg: bandera de fondo */
     char ***argvv = NULL;
     int argvc;
     char *filev[3] = { NULL, NULL, NULL };
     int bg;
     int ret;
 
+    /* Desactiva el buffer de stdio para prompt y entrada */
     setbuf(stdout, NULL);           /* Unbuffered */
     setbuf(stdin, NULL);
 
     while (1) {
         int status;
 
+        /* Recolecta hijos en segundo plano terminados */
         while (waitpid(-1, &status, WNOHANG) > 0) {
             /* barrido de procesos hijos terminados */
         }
 
+        /* Muestra prompt y parsea una linea de comandos */
         fprintf(stderr, "%s", "msh> ");     /* Prompt */
         ret = obtain_order(&argvv, filev, &bg);
         if (ret == 0) break;                /* EOF */
@@ -53,7 +57,7 @@ int main(void)
         argvc = ret - 1;                    /* Line */
         if (argvc == 0) continue;           /* Empty line */
 
-        
+        /* Estado de ejecucion de la pipeline */
         int i;
         int prev_read = -1;
         int started = 0;
@@ -63,11 +67,13 @@ int main(void)
         int redir_ok = 1;
         pid_t *pids = calloc(argvc, sizeof(pid_t));
 
+        /* Reserva arreglo de pid para la pipeline */
         if (!pids) {
             perror("[ERROR] calloc");
             continue;
         }
 
+        /* Abre redireccion de entrada si existe */
         if (filev[0]) {
             in_fd = open(filev[0], O_RDONLY);
             if (in_fd < 0) {
@@ -76,6 +82,7 @@ int main(void)
             }
         }
 
+        /* Abre redireccion de salida si existe */
         if (redir_ok && filev[1]) {
             out_fd = open(filev[1], O_WRONLY | O_CREAT | O_TRUNC, 0666);
             if (out_fd < 0) {
@@ -84,6 +91,7 @@ int main(void)
             }
         }
 
+        /* Abre redireccion de error si existe */
         if (redir_ok && filev[2]) {
             err_fd = open(filev[2], O_WRONLY | O_CREAT | O_TRUNC, 0666);
             if (err_fd < 0) {
@@ -92,6 +100,7 @@ int main(void)
             }
         }
 
+        /* Aborta temprano si falla una redireccion */
         if (!redir_ok) {
             if (in_fd != -1) close(in_fd);
             if (out_fd != -1) close(out_fd);
@@ -103,6 +112,7 @@ int main(void)
         for (i = 0; i < argvc; i++) {
             int pipefd[2] = { -1, -1 };
 
+            /* Crea pipe para todos menos el ultimo comando */
             if (i < argvc - 1) {
                 if (pipe(pipefd) < 0) {
                     perror("[ERROR] pipe");
@@ -110,6 +120,8 @@ int main(void)
                 }
             }
 
+            /* Proceso hijo: configura redirecciones y hace exec */
+            pid_t pid = fork();
             if (pid == 0) {
                 if (prev_read != -1) {
                     dup2(prev_read, STDIN_FILENO);
@@ -123,10 +135,12 @@ int main(void)
                     dup2(out_fd, STDOUT_FILENO);
                 }
 
+                /* Solo redirige stderr en el ultimo comando */
                 if (err_fd != -1 && i == argvc - 1) {
                     dup2(err_fd, STDERR_FILENO);
                 }
 
+                /* Cierra fds no usados en el hijo */
                 if (prev_read != -1) close(prev_read);
                 if (pipefd[0] != -1) close(pipefd[0]);
                 if (pipefd[1] != -1) close(pipefd[1]);
@@ -134,11 +148,13 @@ int main(void)
                 if (out_fd != -1) close(out_fd);
                 if (err_fd != -1) close(err_fd);
 
+                /* Ejecuta comando */
                 execvp(argvv[i][0], argvv[i]);
                 perror(argvv[i][0]);
                 exit(1);
             }
 
+            /* Proceso padre: registra hijo y cierra fds */
             pids[i] = pid;
             started++;
             if (prev_read != -1) close(prev_read);
@@ -146,11 +162,13 @@ int main(void)
             prev_read = pipefd[0];
         }
 
+        /* Padre: cierra fds restantes */
         if (prev_read != -1) close(prev_read);
         if (in_fd != -1) close(in_fd);
         if (out_fd != -1) close(out_fd);
         if (err_fd != -1) close(err_fd);
 
+        /* Espera al ultimo proceso salvo si es fondo */
         if (!bg && started > 0) {
             waitpid(pids[started - 1], &status, 0);
             while (waitpid(-1, &status, WNOHANG) > 0) {
@@ -158,9 +176,11 @@ int main(void)
             }
         }
 
+        /* Libera el arreglo de pid de esta linea */
         free(pids);
         
     }
+    /* Sale del shell */
     exit(0);
     return 0;
 }
