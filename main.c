@@ -25,8 +25,35 @@
 #include <sys/types.h>  	/* pid_t */
 #include <sys/wait.h>   	/* waitpid, WIFEXITED, WEXITSTATUS */
 #include <fcntl.h>      	/* open, O_RDONLY, O_WRONLY, ... */
+#include <signal.h>     	/* sigaction, SIGINT, SIGQUIT, SIGIOT */
 
 extern int obtain_order();  /* See parser.y for description */
+
+static void set_shell_signals(void)
+{
+    struct sigaction sa;
+
+    sa.sa_handler = SIG_IGN;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGQUIT, &sa, NULL);
+    sigaction(SIGIOT, &sa, NULL);
+}
+
+static void set_child_signals(int background)
+{
+    struct sigaction sa;
+
+    sa.sa_handler = background ? SIG_IGN : SIG_DFL;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGQUIT, &sa, NULL);
+    sigaction(SIGIOT, &sa, NULL);
+}
 
 int main(void)
 {
@@ -40,6 +67,9 @@ int main(void)
     /* Desactiva el buffer de stdio para prompt y entrada */
     setbuf(stdout, NULL);           /* Unbuffered */
     setbuf(stdin, NULL);
+
+    /* El shell ignora senales de teclado */
+    set_shell_signals();
 
     while (1) {
         int status;
@@ -124,6 +154,10 @@ int main(void)
             /* Proceso hijo: hereda fds y solo ajusta lo necesario */
             pid_t pid = fork();
             if (pid == 0) {
+                /* En foreground se deja accion por defecto */
+                /* En background se ignoran senales de teclado */
+                set_child_signals(bg);
+
                 if (prev_read != -1) {
                     dup2(prev_read, STDIN_FILENO);
                 } else if (in_fd != -1) {
