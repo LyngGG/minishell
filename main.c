@@ -26,8 +26,10 @@
 #include <sys/wait.h>   	/* waitpid, WIFEXITED, WEXITSTATUS */
 #include <fcntl.h>      	/* open, O_RDONLY, O_WRONLY, ... */
 #include <signal.h>     	/* sigaction, SIGINT, SIGQUIT, SIGIOT */
+#include <string.h>        /* strcmp */
+#include <limits.h>        /* PATH_MAX */
 
-extern int obtain_order();  /* See parser.y for description */
+extern int obtain_order(char ****argvvp, char *filep[3], int *bgp);  /* See parser.y for description */
 
 static void set_shell_signals(void)
 {
@@ -86,6 +88,30 @@ int main(void)
         argvc = ret - 1;                    /* Line */
         if (argvc == 0) continue;           /* Empty line */
 
+        /* Mandato interno: cd (solo si no hay pipeline) */
+        if (argvc == 1 && argvv[0] && argvv[0][0] && strcmp(argvv[0][0], "cd") == 0) {
+            char *target = argvv[0][1];
+
+            if (!target || target[0] == '\0') {
+                target = getenv("HOME");
+            }
+
+            if (!target || target[0] == '\0') {
+                fprintf(stderr, "cd: HOME not set\n");
+            } else if (chdir(target) < 0) {
+                perror(target);
+            } else {
+                char cwd[PATH_MAX];
+                if (getcwd(cwd, sizeof(cwd)) != NULL) {
+                    printf("%s\n", cwd);
+                } else {
+                    perror("getcwd");
+                }
+            }
+
+            continue;
+        }
+
         /* Estado de ejecucion de la pipeline: se comparte en el bucle */
         int i;
         int prev_read = -1;
@@ -114,7 +140,7 @@ int main(void)
 
         /* Abre redireccion de salida si existe */
         if (redir_ok && filev[1]) {
-            out_fd = open(filev[1], O_WRONLY | O_CREAT | O_TRUNC, 0666);
+            out_fd = creat(filev[1], 0666);
             if (out_fd < 0) {
                 perror(filev[1]);
                 redir_ok = 0;
@@ -123,7 +149,7 @@ int main(void)
 
         /* Abre redireccion de error si existe */
         if (redir_ok && filev[2]) {
-            err_fd = open(filev[2], O_WRONLY | O_CREAT | O_TRUNC, 0666);
+            err_fd = creat(filev[2], 0666);
             if (err_fd < 0) {
                 perror(filev[2]);
                 redir_ok = 0;
